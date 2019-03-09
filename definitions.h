@@ -19,6 +19,9 @@ extern FILE* dfile;
 #define MODE_QEMU_INJECT() 2
 #define MODE_DMA() 3
 
+// Mode
+#define LMODE() MODE_EXTERNAL()
+
 #define DMSG(...) fprintf(dfile, __VA_ARGS__)
 #define NMSG(...)
 #define PASTE(A, B) A##B
