@@ -3,9 +3,6 @@ project(HLAPI)
 
 set(CMAKE_CXX_STANDARD 14)
 
-include_directories(.)
-include_directories(hlapi)
-
 add_library(vmread SHARED
         hlapi/hlapi.h
         hlapi/pointers.h
@@ -20,3 +17,6 @@ add_library(vmread SHARED
         winstructs.h
         wintools.c
         wintools.h)
+
+
+target_include_directories(vmread PUBLIC hlapi ${CMAKE_CURRENT_SOURCE_DIR})
