@@ -184,6 +184,10 @@ public:
         VMemRead(&ctx->process, proc.dirBase, (uint64_t) local, remote, size);
     }
 
+    void Write(void *local, uint64_t remote, size_t size) {
+        VMemWrite(&ctx->process, proc.dirBase, (uint64_t) local, remote, size);
+    }
+
     template<typename T>
     T Read(uint64_t address) {
         T ret;
