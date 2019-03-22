@@ -198,18 +198,6 @@ public:
         VMemWrite(&ctx->process, proc.dirBase, (uint64_t) &value, address, sizeof(T));
     }
 
-    std::wstring ReadWString(uint64_t address, size_t maxSize = 128) {
-        wchar_t buffer[maxSize];
-        VMemRead(&ctx->process, proc.dirBase, (uint64_t) &buffer, address, maxSize);
-        return std::wstring(buffer);
-    }
-
-    std::string ReadString(uint64_t address, size_t maxSize = 128) {
-        char buffer[maxSize];
-        VMemRead(&ctx->process, proc.dirBase, (uint64_t) &buffer, address, maxSize);
-        return std::string(buffer);
-    }
-
     auto &operator=(WinProcess rhs) {
         std::swap(modules.list, rhs.modules.list);
         std::swap(modules.size, rhs.modules.size);
