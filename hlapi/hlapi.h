@@ -166,8 +166,6 @@ class WinProcess {
 public:
     WinDll *GetModuleInfo(const char *moduleName);
 
-    PEB cachedPEB;
-
     PEB GetPeb();
 
     WinProcess();

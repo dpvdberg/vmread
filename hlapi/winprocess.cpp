@@ -59,8 +59,7 @@ WinDll* WinProcess::GetModuleInfo(const char* moduleName)
 
 PEB WinProcess::GetPeb()
 {
-	cachedPEB = ::GetPeb(ctx, &proc);
-	return cachedPEB;
+	return ::GetPeb(ctx, &proc);
 }
 
 WinProcess::WinProcess()
