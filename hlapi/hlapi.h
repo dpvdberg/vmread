@@ -13,261 +13,273 @@
 
 class VMException : public std::exception {
 public:
-  VMException(int status) { value = status; }
+    VMException(int status) { value = status; }
 
-  int value;
+    int value;
 };
 
-template <typename T> class WinListIterator {
+template<typename T>
+class WinListIterator {
 public:
-  WinListIterator(T *l) {
-    list = l;
-    count = 0;
-  }
+    WinListIterator(T *l) {
+        list = l;
+        count = 0;
+    }
 
-  WinListIterator(T *l, size_t c) {
-    list = l;
-    count = c;
-  }
+    WinListIterator(T *l, size_t c) {
+        list = l;
+        count = c;
+    }
 
-  auto &operator*() { return list->list[count]; }
+    auto &operator*() { return list->list[count]; }
 
-  WinListIterator &operator++(int c) {
-    count += c;
-    return *this;
-  }
+    WinListIterator &operator++(int c) {
+        count += c;
+        return *this;
+    }
 
-  WinListIterator &operator++() { return operator++(1); }
+    WinListIterator &operator++() { return operator++(1); }
 
-  WinListIterator &operator--(int c) {
-    count -= c;
-    return *this;
-  }
+    WinListIterator &operator--(int c) {
+        count -= c;
+        return *this;
+    }
 
-  WinListIterator &operator--() { return operator--(1); }
+    WinListIterator &operator--() { return operator--(1); }
 
-  bool operator==(WinListIterator &rhs) {
-    return count == rhs.count && list == rhs.list;
-  }
+    bool operator==(WinListIterator &rhs) {
+        return count == rhs.count && list == rhs.list;
+    }
 
-  bool operator!=(WinListIterator &rhs) { return !operator==(rhs); }
+    bool operator!=(WinListIterator &rhs) { return !operator==(rhs); }
 
 protected:
-  size_t count;
+    size_t count;
 
 private:
-  T *list;
+    T *list;
 };
 
 class WinExportIteratableList {
 public:
-  using iterator = WinListIterator<WinExportList>;
+    using iterator = WinListIterator<WinExportList>;
 
-  iterator begin();
+    iterator begin();
 
-  iterator end();
+    iterator end();
 
 private:
-  friend iterator;
+    friend iterator;
 
-  friend class WinDll;
+    friend class WinDll;
 
-  class WinDll *windll;
+    class WinDll *windll;
 
-  WinExportList list;
+    WinExportList list;
 };
 
 class WinDll {
 public:
-  uint64_t GetProcAddress(const char *procName);
+    uint64_t GetProcAddress(const char *procName);
 
-  WinDll();
+    WinDll();
 
-  WinDll(WinCtx *c, WinProc *p, WinModule &i);
+    WinDll(const WinCtx *c, const WinProc *p, WinModule &i);
 
-  WinDll(WinDll &&rhs);
+    WinDll(WinDll &&rhs);
 
-  WinDll(WinDll &rhs) = delete;
+    WinDll(WinDll &rhs) = delete;
 
-  ~WinDll();
+    ~WinDll();
 
-  auto &operator=(WinDll rhs) {
-    info = rhs.info;
-    std::swap(exports.list, rhs.exports.list);
-    ctx = rhs.ctx;
-    process = rhs.process;
-    return *this;
-  }
+    auto &operator=(WinDll rhs) {
+        info = rhs.info;
+        std::swap(exports.list, rhs.exports.list);
+        ctx = rhs.ctx;
+        process = rhs.process;
+        return *this;
+    }
 
-  WinModule info;
-  WinExportIteratableList exports;
+    WinModule info;
+    WinExportIteratableList exports;
 
 private:
-  friend WinExportIteratableList;
-  WinCtx *ctx;
-  WinProc *process;
+    friend WinExportIteratableList;
+    const WinCtx *ctx;
+    const WinProc *process;
 
-  void VerifyExportList();
+    void VerifyExportList();
 };
 
 class ModuleIteratableList {
 public:
-  using iterator = WinListIterator<ModuleIteratableList>;
+    using iterator = WinListIterator<ModuleIteratableList>;
 
-  iterator begin();
+    iterator begin();
 
-  iterator end();
+    iterator end();
 
-  size_t getSize();
+    size_t getSize();
 
 private:
-  friend iterator;
+    friend iterator;
 
-  friend class WinProcess;
+    friend class WinProcess;
 
-  class WinProcess *process;
+    class WinProcess *process;
 
-  WinDll *list;
-  size_t size;
+    WinDll *list;
+    size_t size;
 };
 
 class WriteList {
 public:
-  WriteList(WinProcess *);
+    WriteList(const WinProcess *);
 
-  ~WriteList();
+    ~WriteList();
 
-  void Commit();
+    void Commit();
 
-  template <typename T> void Write(uint64_t address, T &value) {
-    writeList.push_back({(uint64_t)buffer.size(), address, sizeof(T)});
-    buffer.reserve(sizeof(T));
-    std::copy((char *)&value, (char *)&value + sizeof(T),
-              std::back_inserter(buffer));
-  }
+    template<typename T>
+    void Write(uint64_t address, T &value) {
+        writeList.push_back({(uint64_t) buffer.size(), address, sizeof(T)});
+        buffer.reserve(sizeof(T));
+        std::copy((char *) &value, (char *) &value + sizeof(T),
+                  std::back_inserter(buffer));
+    }
+
+    const WinCtx *ctx;
+    const WinProc *proc;
 
 private:
-  std::vector<RWInfo> writeList;
-  std::vector<char> buffer;
-  WinCtx *ctx;
-  WinProc *proc;
+    std::vector<RWInfo> writeList;
+    std::vector<char> buffer;
 };
 
 class WinProcess {
 public:
-  WinDll *GetModuleInfo(const char *moduleName);
+    WinDll *GetModuleInfo(const char *moduleName);
 
-  PEB GetPeb();
+    PEB GetPeb();
 
-  WinProcess();
+    WinProcess();
 
-  WinProcess(WinProc &p, WinCtx *c);
+    WinProcess(const WinProc &p, const WinCtx *c);
 
-  WinProcess(WinProcess &&rhs);
+    WinProcess(WinProcess &&rhs);
 
-  WinProcess(WinProcess &rhs) = delete;
+    WinProcess(WinProcess &rhs) = delete;
 
-  ~WinProcess();
+    ~WinProcess();
 
-  void Read(void *local, uint64_t remote, size_t size) {
-    VMemRead(&ctx->process, proc.dirBase, (uint64_t)local, remote, size);
-  }
+    ssize_t Read(uint64_t address, void *buffer, size_t sz);
 
-  void Write(void *local, uint64_t remote, size_t size) {
-    VMemWrite(&ctx->process, proc.dirBase, (uint64_t)local, remote, size);
-  }
+    ssize_t Write(uint64_t address, void *buffer, size_t sz);
 
-  template <typename T> T Read(uint64_t address) {
-    T ret;
-    VMemRead(&ctx->process, proc.dirBase, (uint64_t)&ret, address, sizeof(T));
-    return ret;
-  }
+    void Read(void *local, uint64_t remote, size_t size) {
+        VMemRead(&ctx->process, proc.dirBase, (uint64_t) local, remote, size);
+    }
 
-  template <typename T> void Write(uint64_t address, const T &value) {
-    VMemWrite(&ctx->process, proc.dirBase, (uint64_t)&value, address,
-              sizeof(T));
-  }
+    void Write(void *local, uint64_t remote, size_t size) {
+        VMemWrite(&ctx->process, proc.dirBase, (uint64_t) local, remote, size);
+    }
 
-  auto &operator=(WinProcess rhs) {
-    std::swap(modules.list, rhs.modules.list);
-    std::swap(modules.size, rhs.modules.size);
-    ctx = rhs.ctx;
-    proc = rhs.proc;
-    return *this;
-  }
+    template<typename T>
+    T Read(uint64_t address) {
+        T ret;
+        VMemRead(&ctx->process, proc.dirBase, (uint64_t) &ret, address, sizeof(T));
+        return ret;
+    }
 
-  WinProc proc;
-  ModuleIteratableList modules;
+    template<typename T>
+    void Write(uint64_t address, const T &value) {
+        VMemWrite(&ctx->process, proc.dirBase, (uint64_t) &value, address,
+                  sizeof(T));
+    }
+
+    auto &operator=(WinProcess rhs) {
+        std::swap(modules.list, rhs.modules.list);
+        std::swap(modules.size, rhs.modules.size);
+        ctx = rhs.ctx;
+        proc = rhs.proc;
+        return *this;
+    }
+
+    WinProc proc;
+    ModuleIteratableList modules;
+    const WinCtx *ctx;
 
 protected:
-  friend ModuleIteratableList;
-  friend WriteList;
-  WinCtx *ctx;
+    friend ModuleIteratableList;
+    friend WriteList;
 
-  void VerifyModuleList();
+    void VerifyModuleList();
 };
 
 class WinProcessList {
 public:
-  using iterator = WinListIterator<WinProcessList>;
+    using iterator = WinListIterator<WinProcessList>;
 
-  void Refresh();
+    void Refresh();
 
-  WinProcess *FindProc(const char *name);
+    WinProcess *FindProc(const char *name);
 
-  iterator begin();
+    iterator begin();
 
-  iterator end();
+    iterator end();
 
-  WinProcessList();
+    WinProcessList();
 
-  WinProcessList(WinCtx *pctx);
+    WinProcessList(const WinCtx *pctx);
 
-  WinProcessList(WinProcessList &&rhs);
+    WinProcessList(WinProcessList &&rhs);
 
-  WinProcessList(WinProcessList &rhs) = delete;
+    WinProcessList(WinProcessList &rhs) = delete;
 
-  ~WinProcessList();
+    ~WinProcessList();
 
-  auto &operator=(WinProcessList rhs) {
-    std::swap(plist, rhs.plist);
-    std::swap(list, rhs.list);
-    ctx = rhs.ctx;
-    return *this;
-  }
+    auto &operator=(WinProcessList rhs) {
+        std::swap(plist, rhs.plist);
+        std::swap(list, rhs.list);
+        ctx = rhs.ctx;
+        return *this;
+    }
+
+    const WinCtx *ctx;
 
 protected:
-  friend iterator;
-  WinProcList plist;
-  WinCtx *ctx;
-  WinProcess *list;
+    friend iterator;
+    WinProcList plist;
+    WinProcess *list;
 
-  void FreeProcessList();
+    void FreeProcessList();
 };
 
 class WinContext {
 public:
-  template <typename T> T Read(uint64_t address) {
-    T ret;
-    MemRead(&ctx.process, (uint64_t)&ret, address, sizeof(T));
-    return ret;
-  }
+    template<typename T>
+    T Read(uint64_t address) {
+        T ret;
+        MemRead(&ctx.process, (uint64_t) &ret, address, sizeof(T));
+        return ret;
+    }
 
-  template <typename T> void Write(uint64_t address, T &value) {
-    MemWrite(&ctx.process, (uint64_t)&value, address, sizeof(T));
-  }
+    template<typename T>
+    void Write(uint64_t address, T &value) {
+        MemWrite(&ctx.process, (uint64_t) &value, address, sizeof(T));
+    }
 
-  WinContext(pid_t pid) {
-    int ret = InitializeContext(&ctx, pid);
-    if (ret)
-      throw VMException(ret);
-    processList = WinProcessList(&ctx);
-  }
+    WinContext(pid_t pid) {
+        int ret = InitializeContext(&ctx, pid);
+        if (ret)
+            throw VMException(ret);
+        processList = WinProcessList(&ctx);
+    }
 
-  ~WinContext() { FreeContext(&ctx); }
+    ~WinContext() { FreeContext(&ctx); }
 
-  WinProcessList processList;
-  WinCtx ctx;
+    WinProcessList processList;
+    WinCtx ctx;
 };
 
 #endif
