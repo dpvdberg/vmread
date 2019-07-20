@@ -69,6 +69,7 @@ private:
     T *list;
 };
 
+<<<<<<< HEAD
 class WinExportIteratableList {
 public:
     using iterator = WinListIterator<WinExportList>;
@@ -252,6 +253,161 @@ protected:
     WinProcess *list;
 
     void FreeProcessList();
+=======
+class WinExportIteratableList
+{
+  public:
+	using iterator = WinListIterator<WinExportList>;
+	iterator begin();
+	iterator end();
+  private:
+	friend class WinListIterator<WinExportList>;
+	friend class WinDll;
+    class WinDll* windll;
+
+	WinExportList list;
+};
+
+class WinDll
+{
+  public:
+	uint64_t GetProcAddress(const char* procName);
+	WinDll();
+	WinDll(const WinCtx* c, const WinProc* p, WinModule& i);
+	WinDll(WinDll&& rhs);
+	WinDll(WinDll& rhs) = delete;
+	~WinDll();
+
+	auto& operator=(WinDll rhs)
+	{
+		info = rhs.info;
+		std::swap(exports.list, rhs.exports.list);
+		ctx = rhs.ctx;
+		process = rhs.process;
+		return *this;
+	}
+
+	WinModule info;
+	WinExportIteratableList exports;
+	const WinCtx* ctx;
+	const WinProc* process;
+  private:
+	friend class WinExportIteratableList;
+	void VerifyExportList();
+};
+
+class ModuleIteratableList
+{
+  public:
+	using iterator = WinListIterator<ModuleIteratableList>;
+	iterator begin();
+	iterator end();
+	size_t getSize();
+  private:
+	friend class WinListIterator<ModuleIteratableList>;
+	friend class WinProcess;
+	class WinProcess* process;
+	WinDll* list;
+	size_t size;
+};
+
+class WriteList
+{
+  public:
+	WriteList(const WinProcess*);
+	~WriteList();
+	void Commit();
+
+	template<typename T>
+	void Write(uint64_t address, T& value)
+	{
+		writeList.push_back({(uint64_t)buffer.size(), address, sizeof(T)});
+		buffer.reserve(sizeof(T));
+		std::copy((char*)&value, (char*)&value + sizeof(T), std::back_inserter(buffer));
+	}
+
+	const WinCtx* ctx;
+	const WinProc* proc;
+  private:
+	std::vector<RWInfo> writeList;
+	std::vector<char> buffer;
+};
+
+class WinProcess
+{
+  public:
+	WinDll* GetModuleInfo(const char* moduleName);
+	PEB GetPeb();
+	WinProcess();
+	WinProcess(const WinProc& p, const WinCtx* c);
+	WinProcess(WinProcess&& rhs);
+	WinProcess(WinProcess& rhs) = delete;
+	~WinProcess();
+
+	ssize_t Read(uint64_t address, void* buffer, size_t sz);
+	ssize_t Write(uint64_t address, void* buffer, size_t sz);
+
+	template<typename T>
+	T Read(uint64_t address)
+	{
+		T ret;
+		VMemRead(&ctx->process, proc.dirBase, (uint64_t)&ret, address, sizeof(T));
+		return ret;
+	}
+
+	template<typename T>
+	void Write(uint64_t address, const T& value)
+	{
+		VMemWrite(&ctx->process, proc.dirBase, (uint64_t)&value, address, sizeof(T));
+	}
+
+	auto& operator=(WinProcess rhs)
+	{
+		std::swap(modules.list, rhs.modules.list);
+		std::swap(modules.size, rhs.modules.size);
+		ctx = rhs.ctx;
+		proc = rhs.proc;
+		return *this;
+	}
+
+	WinProc proc;
+	ModuleIteratableList modules;
+	const WinCtx* ctx;
+  protected:
+	friend class ModuleIteratableList;
+	friend class WriteList;
+	void VerifyModuleList();
+};
+
+class WinProcessList
+{
+  public:
+	using iterator = WinListIterator<WinProcessList>;
+	void Refresh();
+	WinProcess* FindProc(const char* name);
+	iterator begin();
+	iterator end();
+	WinProcessList();
+	WinProcessList(const WinCtx* pctx);
+	WinProcessList(WinProcessList&& rhs);
+	WinProcessList(WinProcessList& rhs) = delete;
+	~WinProcessList();
+
+	auto& operator=(WinProcessList rhs)
+	{
+		std::swap(plist, rhs.plist);
+		std::swap(list, rhs.list);
+		ctx = rhs.ctx;
+		return *this;
+	}
+
+	const WinCtx* ctx;
+  protected:
+	friend iterator;
+	WinProcList plist;
+	WinProcess* list;
+	void FreeProcessList();
+>>>>>>> upstream/master
 };
 
 class WinContext {

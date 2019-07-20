@@ -10,9 +10,17 @@
 
 FILE *dfile;
 
+<<<<<<< HEAD
 __attribute__((constructor)) void init() {
   FILE *out = stdout;
   pid_t pid;
+=======
+__attribute__((constructor))
+static void init()
+{
+	FILE* out = stdout;
+	pid_t pid;
+>>>>>>> upstream/master
 #if (LMODE() == MODE_EXTERNAL())
   FILE *pipe = popen("pidof qemu-system-x86_64", "r");
   fscanf(pipe, "%d", &pid);
