@@ -4,6 +4,12 @@
 #include <errno.h>
 #include <string.h>
 
+#ifdef KMOD_MEMMAP
+#include "kmem.h"
+#include <sys/mman.h>
+#include <sys/ioctl.h>
+#endif
+
 char* strdup(const char*);
 
 static int CheckLow(const WinCtx* ctx, uint64_t* pml4, uint64_t* kernelEntry);
@@ -11,11 +17,16 @@ static uint64_t FindNTKernel(const WinCtx* ctx, uint64_t kernelEntry);
 static uint16_t GetNTVersion(const WinCtx* ctx);
 static uint32_t GetNTBuild(const WinCtx* ctx);
 static int SetupOffsets(WinCtx* ctx);
+static void FillAnyModuleList64(const WinCtx* ctx, const WinProc* process, WinModuleList* list, size_t* maxSize, uint64_t head, int inMemoryOrder);
 static void FillModuleList64(const WinCtx* ctx, const WinProc* process, WinModuleList* list, size_t* maxSize, char* x86);
 static void FillModuleList32(const WinCtx* ctx, const WinProc* process, WinModuleList* list, size_t* maxSize);
 
 extern uint64_t KFIXC;
 extern uint64_t KFIXO;
+
+#ifndef HEADER_SIZE
+#define HEADER_SIZE 0x1000
+#endif
 
 int InitializeContext(WinCtx* ctx, pid_t pid)
 {
@@ -43,6 +54,19 @@ int InitializeContext(WinCtx* ctx, pid_t pid)
 	ctx->process.mapsSize = largestMaps->length;
 
 	pmparser_free(maps);
+
+#ifdef KMOD_MEMMAP
+	MSG(2, "Mapping VM memory, this will take a second...\n");
+
+	int fd = open("/proc/vmread", O_RDWR);
+
+	if (fd != -1) {
+		ioctl(fd, VMREAD_IOCTL_MAPVMMEM, &ctx->process);
+		close(fd);
+	}
+#endif
+
+	MSG(2, "Mem:\t%lx\t| Size:\t%lx\n", ctx->process.mapsStart, ctx->process.mapsSize);
 
 	if (!CheckLow(ctx, &pml4, &kernelEntry))
 		return 3;
@@ -111,7 +135,7 @@ int FreeContext(WinCtx* ctx)
 
 IMAGE_NT_HEADERS* GetNTHeader(const WinCtx* ctx, const WinProc* process, uint64_t address, uint8_t* header, uint8_t* is64Bit)
 {
-	if (VMemRead(&ctx->process, process->dirBase, (uint64_t)header, address, 0x1000) == -1)
+	if (VMemRead(&ctx->process, process->dirBase, (uint64_t)header, address, HEADER_SIZE) == -1)
 		return NULL;
 
 	//TODO: Allow the compiler to properly handle alignment
@@ -120,7 +144,7 @@ IMAGE_NT_HEADERS* GetNTHeader(const WinCtx* ctx, const WinProc* process, uint64_
 		return NULL;
 
 	IMAGE_NT_HEADERS* ntHeader = (IMAGE_NT_HEADERS*)(void*)(header + dosHeader->e_lfanew);
-	if ((uint8_t*)ntHeader - header > 0x800 || ntHeader->Signature != IMAGE_NT_SIGNATURE)
+	if ((uint8_t*)ntHeader - header > HEADER_SIZE - 0x200 || ntHeader->Signature != IMAGE_NT_SIGNATURE)
 		return NULL;
 
 	if(ntHeader->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC && ntHeader->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
@@ -190,9 +214,11 @@ int ParseExportTable(const WinCtx* ctx, const WinProc* process, uint64_t moduleB
 int GenerateExportList(const WinCtx* ctx, const WinProc* process, uint64_t moduleBase, WinExportList* outList)
 {
 	uint8_t is64 = 0;
-	uint8_t headerBuf[0x1000];
+	uint8_t headerBuf[HEADER_SIZE];
+	int ret = 0;
 
 	IMAGE_NT_HEADERS64* ntHeader64 = GetNTHeader(ctx, process, moduleBase, headerBuf, &is64);
+
 	if (!ntHeader64)
 		return 1;
 
@@ -204,7 +230,9 @@ int GenerateExportList(const WinCtx* ctx, const WinProc* process, uint64_t modul
 	else
 		exportTable = ntHeader32->OptionalHeader.DataDirectory + IMAGE_DIRECTORY_ENTRY_EXPORT;
 
-	return ParseExportTable(ctx, process, moduleBase, exportTable, outList) != 0;
+	ret = ParseExportTable(ctx, process, moduleBase, exportTable, outList);
+
+	return ret != 0;
 }
 
 void FreeExportList(WinExportList list)
@@ -290,8 +318,6 @@ WinProcList GenerateProcessList(const WinCtx* ctx)
 			break;
 	}
 
-	list.size--;
-
 	return list;
 }
 
@@ -308,6 +334,20 @@ WinModuleList GenerateModuleList(const WinCtx* ctx, const WinProc* process)
 
 	if (x86)
 		FillModuleList32(ctx, process, &list, &maxSize);
+
+	return list;
+}
+
+WinModuleList GenerateKernelModuleList(const WinCtx* ctx)
+{
+	WinModuleList list;
+	list.size = 0;
+	list.list = (WinModule*)malloc(sizeof(WinModule) * 25);
+
+	size_t maxSize = 25;
+	uint64_t psLoadedModuleList = FindProcAddress(ctx->ntExports, "PsLoadedModuleList");
+
+	FillAnyModuleList64(ctx, &ctx->initialProcess, &list, &maxSize, psLoadedModuleList, 0);
 
 	return list;
 }
@@ -377,24 +417,28 @@ static int CheckLow(const WinCtx* ctx, uint64_t* pml4, uint64_t* kernelEntry)
 
 static uint64_t FindNTKernel(const WinCtx* ctx, uint64_t kernelEntry)
 {
-	uint64_t i, o, p, u;
+	uint64_t i, o, p, u, mask = 0xfffff;
 	char buf[0x10000];
 
-	for (i = (kernelEntry & ~0x1fffff) + 0x20000000; i > kernelEntry - 0x20000000; i -= 0x200000) {
-		for (o = 0; o < 0x20; o++) {
-			VMemRead(&ctx->process, ctx->initialProcess.dirBase, (uint64_t)buf, i + 0x10000 * o, 0x10000);
-			for (p = 0; p < 0x10000; p += 0x1000) {
-				if (*(short*)(void*)(buf + p) == IMAGE_DOS_SIGNATURE) {
-					int kdbg = 0, poolCode = 0;
-					for (u = 0; u < 0x1000; u++) {
-						kdbg = kdbg || *(uint64_t*)(void*)(buf + p + u) == 0x4742444b54494e49;
-						poolCode = poolCode || *(uint64_t*)(void*)(buf + p + u) == 0x45444f434c4f4f50;
-						if (kdbg & poolCode)
-							return i + 0x10000 * o + p;
+	while (mask >= 0xfff) {
+		for (i = (kernelEntry & ~0x1fffff) + 0x20000000; i > kernelEntry - 0x20000000; i -= 0x200000) {
+			for (o = 0; o < 0x20; o++) {
+				VMemRead(&ctx->process, ctx->initialProcess.dirBase, (uint64_t)buf, i + 0x10000 * o, 0x10000);
+				for (p = 0; p < 0x10000; p += 0x1000) {
+					if (((i + 0x1000 * o + p) & mask) == 0 && *(short*)(void*)(buf + p) == IMAGE_DOS_SIGNATURE) {
+						int kdbg = 0, poolCode = 0;
+						for (u = 0; u < 0x1000; u++) {
+							kdbg = kdbg || *(uint64_t*)(void*)(buf + p + u) == 0x4742444b54494e49;
+							poolCode = poolCode || *(uint64_t*)(void*)(buf + p + u) == 0x45444f434c4f4f50;
+							if (kdbg & poolCode)
+								return i + 0x10000 * o + p;
+						}
 					}
 				}
 			}
 		}
+
+		mask = mask >> 4;
 	}
 
 	return 0;
@@ -521,7 +565,7 @@ static int SetupOffsets(WinCtx* ctx)
 
 		  if (ctx->ntBuild >= 18362) { /* Version 1903 or higher */
 			  ctx->offsets.apl = 0x2f0;
-			  ctx->offsets.threadListEntry = 0x690;
+			  ctx->offsets.threadListEntry = 0x6b8;
 		  }
 
 		  break;
@@ -535,14 +579,32 @@ static void FillModuleList64(const WinCtx* ctx, const WinProc* process, WinModul
 {
 	PEB peb = GetPeb(ctx, process);
 	PEB_LDR_DATA ldr;
+	memset(&ldr, 0, sizeof(ldr));
 	VMemRead(&ctx->process, process->dirBase, (uint64_t)&ldr, peb.Ldr, sizeof(ldr));
 
 	uint64_t head = ldr.InMemoryOrderModuleList.f_link;
+	size_t i = list->size ? list->size - 1 : list->size;
+
+	FillAnyModuleList64(ctx, process, list, maxSize, head, 1);
+
+	for (; i < list->size; i++) {
+		if (!strcmp(list->list[i].name, "wow64.dll")) {
+			*x86 = 1;
+			break;
+		}
+	}
+}
+
+static void FillAnyModuleList64(const WinCtx* ctx, const WinProc* process, WinModuleList* list, size_t* maxSize, uint64_t head, int inMemoryOrder)
+{
 	uint64_t end = head;
 	uint64_t prev = head+1;
 
 	size_t nameBufSize = 128;
 	wchar_t* buf = (wchar_t*)malloc(sizeof(wchar_t) * nameBufSize);
+
+	if (inMemoryOrder)
+		inMemoryOrder = 1;
 
 	do {
 		if (list->size >= *maxSize) {
@@ -555,7 +617,8 @@ static void FillModuleList64(const WinCtx* ctx, const WinProc* process, WinModul
 		prev = head;
 
 		LDR_MODULE mod;
-		VMemRead(&ctx->process, process->dirBase, (uint64_t)&mod, head - sizeof(LIST_ENTRY), sizeof(mod));
+		memset(&mod, 0, sizeof(mod));
+		VMemRead(&ctx->process, process->dirBase, (uint64_t)&mod, head - sizeof(LIST_ENTRY) * inMemoryOrder, sizeof(mod));
 		VMemRead(&ctx->process, process->dirBase, (uint64_t)&head, head, sizeof(head));
 
 		if (!mod.BaseDllName.length || !mod.SizeOfImage)
@@ -584,8 +647,6 @@ static void FillModuleList64(const WinCtx* ctx, const WinProc* process, WinModul
 		list->list[list->size].loadCount = mod.LoadCount;
 		list->size++;
 
-		if (!strcmp(buf2, "wow64.dll"))
-			*x86 = 1;
 	} while (head != end && head != prev);
 
 	free(buf);
@@ -595,6 +656,7 @@ static void FillModuleList32(const WinCtx* ctx, const WinProc* process, WinModul
 {
 	PEB32 peb = GetPeb32(ctx, process);
 	PEB_LDR_DATA32 ldr;
+	memset(&ldr, 0, sizeof(ldr));
 	VMemRead(&ctx->process, process->dirBase, (uint64_t)&ldr, peb.Ldr, sizeof(ldr));
 
 	uint32_t head = ldr.InMemoryOrderModuleList.f_link;
@@ -615,6 +677,8 @@ static void FillModuleList32(const WinCtx* ctx, const WinProc* process, WinModul
 		prev = head;
 
 		LDR_MODULE32 mod;
+		memset(&mod, 0, sizeof(mod));
+
 		VMemRead(&ctx->process, process->dirBase, (uint64_t)&mod, head - sizeof(LIST_ENTRY32), sizeof(mod));
 		VMemRead(&ctx->process, process->dirBase, (uint64_t)&head, head, sizeof(head));
 
