@@ -31,7 +31,7 @@ typedef struct WinProc
 	uint64_t physProcess;
 	uint64_t dirBase;
 	uint64_t pid;
-	char name[64];
+	char name[16];
 } WinProc;
 
 typedef struct WinProcList

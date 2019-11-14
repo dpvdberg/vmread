@@ -293,8 +293,8 @@ WinProcList GenerateProcessList(const WinCtx* ctx)
 				.pid = pid,
 			};
 
-			MemRead(&ctx->process, (uint64_t)list.list[list.size].name, curProc + ctx->offsets.imageFileName, 63);
-			list.list[list.size].name[63] = '\0';
+			MemRead(&ctx->process, (uint64_t)list.list[list.size].name, curProc + ctx->offsets.imageFileName, 15);
+			list.list[list.size].name[15] = '\0';
 
 			list.size++;
 			if (list.size > 1000 || pid == 0)
