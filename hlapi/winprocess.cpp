@@ -130,7 +130,6 @@ WinProcess::WinProcess(WinProcess&& rhs)
 
 WinProcess& WinProcess::operator=(WinProcess&& rhs) noexcept
 {
-	printf("MOVE\n");
 	proc = rhs.proc;
 	ctx = rhs.ctx;
 	modules = std::move(rhs.modules);
