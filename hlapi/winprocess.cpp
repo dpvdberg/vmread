@@ -1,7 +1,5 @@
 #include "hlapi.h"
 
-#include <stdio.h>
-
 ModuleIteratableList::ModuleIteratableList(bool k)
 	: process(nullptr), kernel(k), list(nullptr), size(0)
 {
@@ -150,6 +148,6 @@ ssize_t WinProcess::Read(uint64_t address, void* buffer, size_t sz)
 
 ssize_t WinProcess::Write(uint64_t address, void* buffer, size_t sz)
 {
-	return VMemWrite(&ctx->process, proc.dirBase, (uint64_t)&buffer, address, sz);
+	return VMemWrite(&ctx->process, proc.dirBase, (uint64_t)buffer, address, sz);
 }
 

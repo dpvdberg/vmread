@@ -32,6 +32,18 @@ WinProcess* WinProcessList::FindProc(const char* name)
 	return nullptr;
 }
 
+WinProcess* WinProcessList::FindProcNoCase(const char* name)
+{
+	if (!plist.list)
+		Refresh();
+
+	for (auto& i : *this)
+		if (!strcasecmp(name, i.proc.name))
+			return &i;
+
+	return nullptr;
+}
+
 WinProcessList::WinProcessList()
 {
 	plist.list = nullptr;
@@ -62,7 +74,6 @@ WinProcessList::~WinProcessList()
 
 void WinProcessList::FreeProcessList()
 {
-	if (plist.list)
-		free(plist.list);
+	::FreeProcessList(plist);
 	plist.list = nullptr;
 }
