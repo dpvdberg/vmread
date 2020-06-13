@@ -13,6 +13,8 @@ extern FILE* vmread_dfile;
 #define MODE_QEMU_INJECT() 2
 #define MODE_DMA() 3
 
+#define LMODE() MODE_EXTERNAL()
+
 #define DMSG(...) fprintf(vmread_dfile ? vmread_dfile : stdout, __VA_ARGS__)
 #define NMSG(...)
 #define PASTE(A, B) A##B
