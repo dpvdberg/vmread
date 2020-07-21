@@ -129,7 +129,7 @@ int FreeContext(WinCtx* ctx);
 IMAGE_NT_HEADERS* GetNTHeader(const WinCtx* ctx, const WinProc* process, uint64_t address, uint8_t* header, uint8_t* is64Bit);
 
 // TODO: document
-std::vector<IMAGE_SECTION_HEADER> GetSectionHeaders(const WinCtx* ctx, const WinProc* process)
+std::vector<IMAGE_SECTION_HEADER> GetSectionHeaders(const WinCtx* ctx, const WinProc* process);
 
 /**
  * @brief Parse module export table, writing them to the export list
