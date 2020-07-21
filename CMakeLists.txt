@@ -16,7 +16,7 @@ add_library(vmread SHARED
         pmparser.c
         vmmem.c
         winstructs.h
-        wintools.c
+        wintools.cpp
         wintools.h)
 
 

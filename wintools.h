@@ -3,7 +3,7 @@
 #define WINTOOLS_H
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 
 /**
@@ -15,6 +15,7 @@ extern "C" {
 
 #include "definitions.h"
 #include "winstructs.h"
+#include <vector>
 
 typedef struct WinOffsets
 {
@@ -126,6 +127,9 @@ int FreeContext(WinCtx* ctx);
  * otherwise @c NULL
  */
 IMAGE_NT_HEADERS* GetNTHeader(const WinCtx* ctx, const WinProc* process, uint64_t address, uint8_t* header, uint8_t* is64Bit);
+
+// TODO: document
+std::vector<IMAGE_SECTION_HEADER> GetSectionHeaders(const WinCtx* ctx, const WinProc* process)
 
 /**
  * @brief Parse module export table, writing them to the export list
@@ -274,7 +278,7 @@ PEB GetPeb(const WinCtx* ctx, const WinProc* process);
 PEB32 GetPeb32(const WinCtx* ctx, const WinProc* process);
 
 #ifdef __cplusplus
-}
+//}
 #endif
 
 #endif

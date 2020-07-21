@@ -1,8 +1,8 @@
 #include "wintools.h"
 #include "mem.h"
 #include "pmparser.h"
-#include <errno.h>
-#include <string.h>
+#include <cerrno>
+#include <cstring>
 
 #ifdef KMOD_MEMMAP
 #include "kmem.h"
@@ -206,6 +206,32 @@ IMAGE_NT_HEADERS* GetNTHeader(const WinCtx* ctx, const WinProc* process, uint64_
 	*is64Bit = ntHeader->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC;
 
 	return ntHeader;
+}
+
+std::vector<IMAGE_SECTION_HEADER> GetSectionHeaders(const WinCtx* ctx, const WinProc* process) {
+    std::vector<IMAGE_SECTION_HEADER> sections;
+
+    uint8_t is64 = 0;
+    uint8_t headerBuf[HEADER_SIZE];
+
+    uint64_t base = GetPeb(ctx, process).ImageBaseAddress;
+
+    IMAGE_NT_HEADERS64* ntHeader64 = GetNTHeader(ctx, process, base, headerBuf, &is64);
+
+    uint64_t sectionTableAddress = base + sizeof(IMAGE_DOS_HEADER) + sizeof(IMAGE_NT_HEADERS);
+
+
+    IMAGE_SECTION_HEADER sectionTableBuffer[ntHeader64->FileHeader.NumberOfSections];
+    size_t sectionTableSize = sizeof(sectionTableBuffer);
+
+    if (VMemRead(&ctx->process, process->dirBase, (uint64_t)sectionTableBuffer, sectionTableAddress, sectionTableSize) == -1)
+        return sections;
+
+    for (int i = 0; i < ntHeader64->FileHeader.NumberOfSections; i++) {
+        sections.push_back(sectionTableBuffer[i]);
+    }
+
+    return sections;
 }
 
 int ParseExportTable(const WinCtx* ctx, const WinProc* process, uint64_t moduleBase, IMAGE_DATA_DIRECTORY* exports, WinExportList* outList)
